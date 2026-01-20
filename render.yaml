@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: tower-bot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: BOT_TOKEN
+        value: 8093170790:AAHt36R8ScwD6o9Ya-8Wo7DyH8x215HpH-E
+      - key: PORT
+        value: 10000
+      - key: PYTHON_VERSION
+        value: 3.11.0
