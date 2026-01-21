@@ -646,12 +646,25 @@ if __name__ == '__main__':
     # Инициализация БД
     db.init_db()
     
-    # Установка вебхука при старте (если указан)
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(setup_webhook())
-    loop.close()
+    # Проверяем режим работы: polling или webhook
+    use_polling = os.getenv('USE_POLLING', 'false').lower() == 'true'
     
-    # Запуск Flask приложения
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    if use_polling:
+        # Режим polling - бот сам опрашивает Telegram
+        logger.info("🤖 Запуск бота в режиме polling...")
+        bot_application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            drop_pending_updates=True,
+            close_loop=False
+        )
+    else:
+        # Режим webhook - используем Flask
+        # Установка вебхука при старте (если указан)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(setup_webhook())
+        loop.close()
+        
+        # Запуск Flask приложения
+        port = int(os.environ.get('PORT', 5000))
+        app.run(host='0.0.0.0', port=port, debug=False)
