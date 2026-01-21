@@ -1,0 +1,43 @@
+📋 ФАЙЛЫ ДЛЯ ПЕРЕТАСКИВАНИЯ В БРАУЗЕР:
+
+✅ Перетащите эти файлы в GitHub:
+
+bot.py
+database.py
+config.py
+requirements.txt
+README.md
+.gitignore
+runtime.txt
+railway.json
+RAILWAY_SETUP.md
+RAILWAY_FIX.md
+RENDER_DEPLOY.md
+DEPLOY.md
+GITHUB_WEB_UPLOAD.md
+GITHUB_COMPLETE_GUIDE.md
+GIT_COMMANDS_CHEATSHEET.md
+FILES_TO_UPLOAD.txt
+Procfile
+render.yaml
+
+❌ НЕ ПЕРЕТАСКИВАЙТЕ:
+
+bot.db
+__pycache__/
+test_bot.py
+run_test.py
+START_BOT.bat
+delete_webhook.py
+create_*.py
+*.pyc
+*.pyo
+
+📝 ИНСТРУКЦИЯ:
+
+1. Создайте репозиторий на GitHub
+2. Нажмите "uploading an existing file"
+3. Откройте папку C:\Users\boiar\tower_bot
+4. Перетащите файлы из списка выше
+5. Нажмите "Commit changes"
+6. Готово!
