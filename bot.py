@@ -1,11 +1,14 @@
 ﻿import os
 import logging
 from flask import Flask, request, jsonify
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import asyncio
 from database import Database
-from config import BOT_TOKEN, ADMIN_ID, CHANNEL_USERNAME, SUPPORT_LINK, DEFAULT_REFERRAL_LINK
+from config import (
+    BOT_TOKEN, ADMIN_ID, CHANNEL_USERNAME, SUPPORT_LINK, DEFAULT_REFERRAL_LINK,
+    MAIN_MENU_PHOTO, DEPOSIT_PHOTO, WAITING_PHOTO, ACCESS_GRANTED_PHOTO
+)
 
 # РќР°СЃС‚СЂРѕР№РєР° Р»РѕРіРёСЂРѕРІР°РЅРёСЏ
 logging.basicConfig(
@@ -48,7 +51,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 Выберите действие из меню ниже 👇"""
     
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+    # Отправляем фото если указано, иначе просто текст
+    if MAIN_MENU_PHOTO:
+        await update.message.reply_photo(
+            photo=MAIN_MENU_PHOTO,
+            caption=welcome_text,
+            reply_markup=reply_markup
+        )
+    else:
+        await update.message.reply_text(welcome_text, reply_markup=reply_markup)
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -179,7 +190,24 @@ async def show_deposit_message(query, context):
 
 После пополнения нажмите кнопку "Готово" 👇"""
     
-    await query.edit_message_text(text, reply_markup=reply_markup)
+    # Отправляем фото если указано
+    if DEPOSIT_PHOTO:
+        try:
+            await query.edit_message_media(
+                media=InputMediaPhoto(media=DEPOSIT_PHOTO, caption=text),
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            # Если не получилось изменить медиа, отправляем новое сообщение
+            logger.error(f"Ошибка отправки фото депозита: {e}")
+            await query.message.reply_photo(
+                photo=DEPOSIT_PHOTO,
+                caption=text,
+                reply_markup=reply_markup
+            )
+            await query.message.delete()
+    else:
+        await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def handle_deposit(query, context):
@@ -216,7 +244,24 @@ async def handle_deposit_ready(query, context):
 
 Спасибо за терпение 🙏"""
         
-        await query.edit_message_text(text, reply_markup=reply_markup)
+        # Отправляем фото если указано
+        if WAITING_PHOTO:
+            try:
+                await query.edit_message_media(
+                    media=InputMediaPhoto(media=WAITING_PHOTO, caption=text),
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                # Если не получилось изменить медиа, отправляем новое сообщение
+                logger.error(f"Ошибка отправки фото ожидания: {e}")
+                await query.message.reply_photo(
+                    photo=WAITING_PHOTO,
+                    caption=text,
+                    reply_markup=reply_markup
+                )
+                await query.message.delete()
+        else:
+            await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def show_access_granted_message(query, context):
@@ -272,7 +317,24 @@ https://tower-b0t-web.vercel.app/
 
 Желаем удачной игры и больших выигрышей! 🍀✨"""
     
-    await query.edit_message_text(text, reply_markup=reply_markup)
+    # Отправляем фото если указано
+    if ACCESS_GRANTED_PHOTO:
+        try:
+            await query.edit_message_media(
+                media=InputMediaPhoto(media=ACCESS_GRANTED_PHOTO, caption=text),
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            # Если не получилось изменить медиа, отправляем новое сообщение
+            logger.error(f"Ошибка отправки фото доступа: {e}")
+            await query.message.reply_photo(
+                photo=ACCESS_GRANTED_PHOTO,
+                caption=text,
+                reply_markup=reply_markup
+            )
+            await query.message.delete()
+    else:
+        await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def handle_back_to_menu(query, context):
@@ -296,7 +358,24 @@ async def handle_back_to_menu(query, context):
 
 Выберите действие из меню ниже 👇"""
     
-    await query.edit_message_text(welcome_text, reply_markup=reply_markup)
+    # Отправляем фото если указано
+    if MAIN_MENU_PHOTO:
+        try:
+            await query.edit_message_media(
+                media=InputMediaPhoto(media=MAIN_MENU_PHOTO, caption=welcome_text),
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            # Если не получилось изменить медиа, отправляем новое сообщение
+            logger.error(f"Ошибка отправки фото главного меню: {e}")
+            await query.message.reply_photo(
+                photo=MAIN_MENU_PHOTO,
+                caption=welcome_text,
+                reply_markup=reply_markup
+            )
+            await query.message.delete()
+    else:
+        await query.edit_message_text(welcome_text, reply_markup=reply_markup)
 
 
 async def handle_admin_panel(query, context):
@@ -481,11 +560,20 @@ https://tower-b0t-web.vercel.app/
 
 Желаем удачной игры и больших выигрышей! 🍀✨"""
             
-            await context.bot.send_message(
-                chat_id=target_user_id,
-                text=text,
-                reply_markup=reply_markup
-            )
+            # Отправляем фото если указано
+            if ACCESS_GRANTED_PHOTO:
+                await context.bot.send_photo(
+                    chat_id=target_user_id,
+                    photo=ACCESS_GRANTED_PHOTO,
+                    caption=text,
+                    reply_markup=reply_markup
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=text,
+                    reply_markup=reply_markup
+                )
         except Exception as e:
             logger.error(f"Ошибка отправки сообщения пользователю {target_user_id}: {e}")
             
