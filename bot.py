@@ -569,20 +569,31 @@ def webhook():
 def set_webhook():
     """Установка вебхука (вызывается один раз)"""
     webhook_url = request.args.get('url')
+    
+    # Если URL не указан, используем текущий домен
     if not webhook_url:
-        return jsonify({'error': 'Не указан URL'}), 400
+        base_url = request.url_root.rstrip('/')
+        webhook_url = f"{base_url}/webhook"
     
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
     async def set_wh():
         await bot_application.bot.set_webhook(url=webhook_url)
-        return await bot_application.bot.get_webhook_info()
+        info = await bot_application.bot.get_webhook_info()
+        return info
     
-    result = loop.run_until_complete(set_wh())
-    loop.close()
-    
-    return jsonify(result.to_dict())
+    try:
+        result = loop.run_until_complete(set_wh())
+        loop.close()
+        return jsonify({
+            'status': 'success',
+            'webhook_url': webhook_url,
+            'webhook_info': result.to_dict()
+        })
+    except Exception as e:
+        loop.close()
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/health', methods=['GET'])
@@ -590,18 +601,45 @@ def health():
     """Проверка здоровья бота"""
     return jsonify({'status': 'ok'})
 
+@app.route('/info', methods=['GET'])
+def info():
+    """Информация о текущем домене"""
+    railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+    webhook_url = os.getenv('WEBHOOK_URL')
+    port = os.getenv('PORT', '5000')
+    
+    info_data = {
+        'port': port,
+        'railway_domain': railway_domain,
+        'webhook_url': webhook_url,
+        'current_url': request.url_root.rstrip('/'),
+        'webhook_endpoint': f"{request.url_root.rstrip('/')}/webhook"
+    }
+    return jsonify(info_data)
+
 
 async def setup_webhook():
     """Установка вебхука при старте"""
+    # Пробуем разные способы получить URL
     webhook_url = os.getenv('WEBHOOK_URL')
+    
+    # Если не указан явно, пробуем получить из Railway переменных
+    if not webhook_url:
+        railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN') or os.getenv('RAILWAY_STATIC_URL')
+        if railway_domain:
+            # Убираем протокол если есть
+            railway_domain = railway_domain.replace('https://', '').replace('http://', '')
+            webhook_url = f"https://{railway_domain}/webhook"
+            logger.info(f"Найден Railway домен: {railway_domain}")
+    
     if webhook_url:
         try:
             await bot_application.bot.set_webhook(url=webhook_url)
-            logger.info(f"Webhook установлен: {webhook_url}")
+            logger.info(f"✅ Webhook установлен: {webhook_url}")
         except Exception as e:
-            logger.error(f"Ошибка установки вебхука: {e}")
+            logger.error(f"❌ Ошибка установки вебхука: {e}")
     else:
-        logger.warning("WEBHOOK_URL не указан, вебхук не установлен")
+        logger.warning("⚠️ WEBHOOK_URL не указан, вебхук не установлен. Установите переменную WEBHOOK_URL или RAILWAY_PUBLIC_DOMAIN")
 
 
 if __name__ == '__main__':
