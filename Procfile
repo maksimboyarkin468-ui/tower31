@@ -1,1 +1,1 @@
-web: python run_test.py
+﻿web: python bot.py
