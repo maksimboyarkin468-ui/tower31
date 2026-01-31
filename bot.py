@@ -241,6 +241,7 @@ async def handle_deposit_ready(query, context):
         db.set_awaiting_1win_id(user_id)
         
         keyboard = [
+            [InlineKeyboardButton("💬 Поддержка", url=SUPPORT_LINK)],
             [InlineKeyboardButton("🔙 Вернуться в меню", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
