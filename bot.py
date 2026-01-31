@@ -870,7 +870,6 @@ if __name__ == '__main__':
         )
     else:
         # Режим webhook — один event loop в фоновом потоке, чтобы не было "Event loop is closed"
-        global _bot_loop
         _bot_loop = asyncio.new_event_loop()
         
         def run_loop():
