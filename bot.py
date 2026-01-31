@@ -762,6 +762,14 @@ def get_bot_loop():
     return _bot_loop
 
 
+def _log_future_exception(fut):
+    """Логирует исключение из фоновой задачи вебхука."""
+    try:
+        fut.result()
+    except Exception:
+        logger.exception("Ошибка при обработке апдейта (webhook)")
+
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     """Обработчик вебхука — ставим обработку в общий event loop."""
@@ -771,7 +779,8 @@ def webhook():
         if loop is None:
             logger.error("Event loop бота ещё не запущен")
             return jsonify({'status': 'error', 'message': 'Bot loop not ready'}), 503
-        asyncio.run_coroutine_threadsafe(bot_application.process_update(update), loop)
+        future = asyncio.run_coroutine_threadsafe(bot_application.process_update(update), loop)
+        future.add_done_callback(_log_future_exception)
         return jsonify({'status': 'ok'})
     except Exception as e:
         logger.exception("Ошибка в webhook")
