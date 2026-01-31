@@ -43,3 +43,9 @@ MAIN_MENU_PHOTO = get_photo_path('main_menu')
 DEPOSIT_PHOTO = get_photo_path('deposit')
 WAITING_PHOTO = get_photo_path('waiting')
 ACCESS_GRANTED_PHOTO = get_photo_path('access_granted')
+
+# Постбэки 1win: группа обсуждения канала (комментарии), куда приходят постбэки
+# Форматы: регистрация {sub1}, первый депозит {sub1}|{country}|Firstdep|{amount}, повторный {sub1}|{country}|{amount}
+CHANNEL_DISCUSSION_GROUP_ID = os.getenv('CHANNEL_DISCUSSION_GROUP_ID', '-1003810391629')
+# Извлечение sub1 (ID пользователя 1win): первый сегмент до |. Регулярка: первая группа = sub1
+POSTBACK_USER_ID_REGEX = os.getenv('POSTBACK_USER_ID_REGEX', r'^([^|]+)')

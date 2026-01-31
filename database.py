@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import os
 from datetime import datetime
 
@@ -28,6 +28,18 @@ class Database:
             key TEXT PRIMARY KEY,
             value TEXT
         )''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS postbacks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            onewin_user_id TEXT NOT NULL,
+            raw_text TEXT,
+            amount REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            processed INTEGER DEFAULT 0
+        )''')
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN awaiting_1win_id_since REAL')
+        except sqlite3.OperationalError:
+            pass
         cursor.execute('SELECT value FROM settings WHERE key = ?', ('referral_link',))
         if not cursor.fetchone():
             from config import DEFAULT_REFERRAL_LINK
@@ -38,7 +50,11 @@ class Database:
     def add_user(self, user_id, username):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('INSERT OR REPLACE INTO users (user_id, username, last_active) VALUES (?, ?, CURRENT_TIMESTAMP)', (user_id, username))
+        cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+        if cursor.fetchone():
+            cursor.execute('UPDATE users SET username = ?, last_active = CURRENT_TIMESTAMP WHERE user_id = ?', (username, user_id))
+        else:
+            cursor.execute('INSERT INTO users (user_id, username) VALUES (?, ?)', (user_id, username))
         conn.commit()
         conn.close()
     
@@ -97,5 +113,65 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', ('referral_link', new_link))
+        conn.commit()
+        conn.close()
+
+    # Постбэки 1win (из группы обсуждения канала)
+    def add_postback(self, onewin_user_id, raw_text=None, amount=None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO postbacks (onewin_user_id, raw_text, amount) VALUES (?, ?, ?)',
+            (str(onewin_user_id).strip(), raw_text, amount)
+        )
+        conn.commit()
+        conn.close()
+
+    def get_unprocessed_postback_for_1win_id(self, onewin_user_id):
+        """Возвращает последний необработанный постбэк с таким ID 1win или None."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, onewin_user_id, raw_text, amount, created_at FROM postbacks '
+            'WHERE onewin_user_id = ? AND processed = 0 ORDER BY created_at DESC LIMIT 1',
+            (str(onewin_user_id).strip(),)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return (row[0], row[1], row[2], row[3], row[4]) if row else None
+
+    def mark_postback_processed(self, postback_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE postbacks SET processed = 1 WHERE id = ?', (postback_id,))
+        conn.commit()
+        conn.close()
+
+    # Ожидание ввода ID 1win после нажатия «Готово»
+    def set_awaiting_1win_id(self, user_id):
+        import time
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        ts = time.time()
+        cursor.execute('SELECT user_id FROM users WHERE user_id = ?', (user_id,))
+        if cursor.fetchone():
+            cursor.execute('UPDATE users SET awaiting_1win_id_since = ? WHERE user_id = ?', (ts, user_id))
+        else:
+            cursor.execute('INSERT INTO users (user_id, awaiting_1win_id_since) VALUES (?, ?)', (user_id, ts))
+        conn.commit()
+        conn.close()
+
+    def get_awaiting_1win_id_since(self, user_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT awaiting_1win_id_since FROM users WHERE user_id = ?', (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row and row[0] else None
+
+    def clear_awaiting_1win_id(self, user_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET awaiting_1win_id_since = NULL WHERE user_id = ?', (user_id,))
         conn.commit()
         conn.close()
