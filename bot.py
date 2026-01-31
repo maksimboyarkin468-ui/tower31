@@ -883,7 +883,12 @@ if __name__ == '__main__':
         
         def run_loop():
             asyncio.set_event_loop(_bot_loop)
-            _bot_loop.run_until_complete(setup_webhook())
+
+            async def init_and_webhook():
+                await bot_application.initialize()
+                await setup_webhook()
+
+            _bot_loop.run_until_complete(init_and_webhook())
             _bot_loop.run_forever()
         
         thread = threading.Thread(target=run_loop, daemon=True)
