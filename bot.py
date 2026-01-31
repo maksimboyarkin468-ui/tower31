@@ -5,6 +5,7 @@ import time
 import threading
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, InputMediaPhoto
+from telegram.error import BadRequest
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
 from telegram.ext import filters
 import asyncio
@@ -416,7 +417,14 @@ async def handle_admin_panel(query, context):
 📊 Статистика - общая статистика бота
 🔗 Обновить реферальную ссылку - изменить ссылку казино"""
     
-    await query.edit_message_text(text, reply_markup=reply_markup)
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup)
+    except BadRequest as e:
+        if "no text" in str(e).lower() or "message to edit" in str(e).lower():
+            await query.message.delete()
+            await query.message.reply_text(text, reply_markup=reply_markup)
+        else:
+            raise
 
 
 async def handle_admin_users(query, context):
