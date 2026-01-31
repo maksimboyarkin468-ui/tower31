@@ -392,7 +392,7 @@ async def handle_back_to_menu(query, context):
 
 async def handle_admin_panel(query, context):
     """Панель администратора"""
-    user_id = query.from_user.id
+    user_id = int(query.from_user.id)
     
     if user_id != ADMIN_ID:
         await query.answer("❌ У вас нет доступа к панели администратора!", show_alert=True)

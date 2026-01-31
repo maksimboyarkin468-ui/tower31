@@ -6,8 +6,8 @@ from pathlib import Path
 # НЕ ХРАНИТЕ ТОКЕН В РЕПОЗИТОРИИ! Используйте переменные окружения на сервере
 BOT_TOKEN = os.getenv('BOT_TOKEN', '8093170790:AAHt36R8ScwD6o9Ya-8Wo7DyH8x215HpH-E')
 
-# ID администратора
-ADMIN_ID = 1226518807
+# ID администратора (в Railway Variables задай ADMIN_ID=1226518807)
+ADMIN_ID = int(os.getenv('ADMIN_ID', '1226518807'))
 
 # Имя канала для подписки (без @)
 CHANNEL_USERNAME = "maksoncikaz"
