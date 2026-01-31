@@ -2,6 +2,7 @@ import os
 import re
 import logging
 import time
+import threading
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, InputMediaPhoto
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
@@ -26,6 +27,9 @@ db = Database()
 
 # Таймаут ожидания ввода ID 1win после «Готово» (секунды)
 AWAITING_1WIN_TIMEOUT = 15 * 60  # 15 минут
+
+# Общий event loop для бота (работает в фоновом потоке при режиме webhook)
+_bot_loop = None
 
 # Создаём приложение бота
 bot_application = Application.builder().token(BOT_TOKEN).build()
@@ -753,42 +757,53 @@ if CHANNEL_DISCUSSION_GROUP_ID:
         logger.warning("CHANNEL_DISCUSSION_GROUP_ID задан неверно, постбэки из канала не обрабатываются")
 
 
+def get_bot_loop():
+    """Возвращает общий event loop бота (работает в фоновом потоке)."""
+    return _bot_loop
+
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    """Обработчик вебхука"""
-    update = Update.de_json(request.get_json(force=True), bot_application.bot)
-    asyncio.create_task(bot_application.process_update(update))
-    return jsonify({'status': 'ok'})
+    """Обработчик вебхука — ставим обработку в общий event loop."""
+    try:
+        update = Update.de_json(request.get_json(force=True), bot_application.bot)
+        loop = get_bot_loop()
+        if loop is None:
+            logger.error("Event loop бота ещё не запущен")
+            return jsonify({'status': 'error', 'message': 'Bot loop not ready'}), 503
+        asyncio.run_coroutine_threadsafe(bot_application.process_update(update), loop)
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        logger.exception("Ошибка в webhook")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/set_webhook', methods=['GET'])
 def set_webhook():
-    """Установка вебхука (вызывается один раз)"""
+    """Установка вебхука (вызывается один раз) — выполняется в общем event loop."""
     webhook_url = request.args.get('url')
-    
-    # Если URL не указан, используем текущий домен
     if not webhook_url:
         base_url = request.url_root.rstrip('/')
         webhook_url = f"{base_url}/webhook"
     
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    loop = get_bot_loop()
+    if loop is None:
+        return jsonify({'error': 'Bot loop not ready'}), 503
     
     async def set_wh():
         await bot_application.bot.set_webhook(url=webhook_url)
-        info = await bot_application.bot.get_webhook_info()
-        return info
+        return await bot_application.bot.get_webhook_info()
     
     try:
-        result = loop.run_until_complete(set_wh())
-        loop.close()
+        future = asyncio.run_coroutine_threadsafe(set_wh(), loop)
+        result = future.result(timeout=30)
         return jsonify({
             'status': 'success',
             'webhook_url': webhook_url,
             'webhook_info': result.to_dict()
         })
     except Exception as e:
-        loop.close()
+        logger.exception("Ошибка set_webhook")
         return jsonify({'error': str(e)}), 500
 
 
@@ -854,13 +869,19 @@ if __name__ == '__main__':
             close_loop=False
         )
     else:
-        # Режим webhook - используем Flask
-        # Установка вебхука при старте (если указан)
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(setup_webhook())
-        loop.close()
+        # Режим webhook — один event loop в фоновом потоке, чтобы не было "Event loop is closed"
+        global _bot_loop
+        _bot_loop = asyncio.new_event_loop()
         
-        # Запуск Flask приложения
+        def run_loop():
+            asyncio.set_event_loop(_bot_loop)
+            _bot_loop.run_until_complete(setup_webhook())
+            _bot_loop.run_forever()
+        
+        thread = threading.Thread(target=run_loop, daemon=True)
+        thread.start()
+        # Даём потоку время установить вебхук
+        time.sleep(2)
+        
         port = int(os.environ.get('PORT', 5000))
         app.run(host='0.0.0.0', port=port, debug=False)
