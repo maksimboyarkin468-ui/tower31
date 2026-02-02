@@ -886,26 +886,28 @@ async def setup_webhook():
         except Exception as e:
             logger.error(f"❌ Ошибка установки вебхука: {e}")
     else:
-        logger.warning("⚠️ WEBHOOK_URL не указан, вебхук не установлен. Установите переменную WEBHOOK_URL или RAILWAY_PUBLIC_DOMAIN")
+        logger.warning(
+            "⚠️ WEBHOOK_URL не указан. Варианты: 1) В Railway Variables задай WEBHOOK_URL=https://ТВОЙ_ДОМЕН.up.railway.app/webhook "
+            "2) Или открой в браузере https://ТВОЙ_ДОМЕН.up.railway.app/set_webhook (домен — в сервисе: Settings → Networking)"
+        )
 
 
 if __name__ == '__main__':
-    # Инициализация БД
     db.init_db()
     
-    # Проверяем режим работы: polling или webhook
-    use_polling = os.getenv('USE_POLLING', 'false').lower() == 'true'
+    # Режим: webhook только если явно задан WEBHOOK_URL; иначе polling
+    webhook_url_val = os.getenv('WEBHOOK_URL') or ''
+    use_webhook = bool(webhook_url_val.strip())
+    logger.info("WEBHOOK_URL=%s → режим: %s", repr(webhook_url_val) if webhook_url_val else "не задан", "webhook" if use_webhook else "polling")
     
-    if use_polling:
-        # Режим polling - бот сам опрашивает Telegram
-        logger.info("🤖 Запуск бота в режиме polling...")
+    if not use_webhook:
+        logger.info("🤖 Запуск в режиме polling — бот работает без вебхука")
         bot_application.run_polling(
             allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True,
-            close_loop=False
+            drop_pending_updates=True
         )
     else:
-        # Режим webhook — один event loop в фоновом потоке, чтобы не было "Event loop is closed"
+        # Webhook — когда задан WEBHOOK_URL или домен Railway
         _bot_loop = asyncio.new_event_loop()
         
         def run_loop():
@@ -920,7 +922,6 @@ if __name__ == '__main__':
         
         thread = threading.Thread(target=run_loop, daemon=True)
         thread.start()
-        # Даём потоку время установить вебхук
         time.sleep(2)
         
         port = int(os.environ.get('PORT', 5000))
