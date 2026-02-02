@@ -240,8 +240,10 @@ async def handle_deposit_ready(query, context):
     else:
         # Ставим пользователя в режим «ждём ID 1win»
         db.set_awaiting_1win_id(user_id)
+        referral_link = db.get_referral_link()
         
         keyboard = [
+            [InlineKeyboardButton("🔗 Перейти к пополнению (1win)", url=referral_link)],
             [InlineKeyboardButton("💬 Поддержка", url=SUPPORT_LINK)],
             [InlineKeyboardButton("🔙 Вернуться в меню", callback_data="back_to_menu")]
         ]
@@ -684,7 +686,7 @@ def _extract_amount_from_postback_text(text):
 
 
 async def handle_discussion_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сообщения из группы обсуждения канала — постбэки 1win. Форматы: sub1, sub1|country|Firstdep|amount, sub1|country|amount."""
+    """Сообщения из группы — постбэки 1win. Сохраняем и копию шлём админу в личку (ADMIN_ID)."""
     if not update.message or not update.message.text:
         return
     text = update.message.text
@@ -693,6 +695,14 @@ async def handle_discussion_group_message(update: Update, context: ContextTypes.
         amount = _extract_amount_from_postback_text(text)
         db.add_postback(onewin_id, raw_text=text, amount=amount)
         logger.info(f"Постбэк сохранён: 1win_id={onewin_id}, amount={amount}")
+        # Копия постбэка админу в личку (ID 1226518807)
+        try:
+            await context.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=f"📥 Постбэк:\n{text}"
+            )
+        except Exception as e:
+            logger.warning(f"Не удалось отправить постбэк админу: {e}")
 
 
 async def setref_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
