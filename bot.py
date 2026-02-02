@@ -31,9 +31,6 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 db = Database()
 
-# Таймаут ожидания ввода ID 1win после «Готово» (секунды)
-AWAITING_1WIN_TIMEOUT = 15 * 60  # 15 минут
-
 # Общий event loop для бота (работает в фоновом потоке при режиме webhook)
 _bot_loop = None
 
@@ -243,8 +240,6 @@ async def handle_deposit_ready(query, context):
         # Если доступ уже есть, показываем окно с доступом
         await show_access_granted_message(query, context)
     else:
-        # Ставим пользователя в режим «ждём ID 1win»
-        db.set_awaiting_1win_id(user_id)
         referral_link = db.get_referral_link()
         
         keyboard = [
@@ -254,18 +249,11 @@ async def handle_deposit_ready(query, context):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        text = """⏳ Проверка депозита (1win)
+        text = """⏳ Проверка депозита
 
 ✅ Ваша заявка принята!
 
-📌 Напишите в этот чат ваш ID на сайте 1win — с аккаунта, который вы только что создали по ссылке из предыдущего окна (число или логин). Так мы сверим пополнение с постбэками и откроем доступ.
-
-⚠️ ОБЯЗАТЕЛЬНО при регистрации/пополнении введите промокод: buy12
-Без этого бот не сможет проверить ваш депозит!
-
-⏰ ID можно посмотреть в личном кабинете 1win или в письмах от сайта.
-
-🔔 После совпадения с постбэком доступ откроется автоматически. Если постбэк ещё не пришёл — попробуйте через пару минут или напишите в поддержку."""
+Доступ выдаётся вручную администратором. Ожидайте подтверждения — с вами свяжутся или доступ откроется в боте."""
         
         # Отправляем фото если указано
         if WAITING_PHOTO:
@@ -612,7 +600,7 @@ https://tower-b0t-web.vercel.app/
 
 
 def _extract_1win_id_from_postback_text(text):
-    """Извлекает ID пользователя 1win из текста постбэка."""
+    """Извлекает ID из строки постбэка (для пересылки админу)."""
     if not text or not text.strip():
         return None
     if POSTBACK_USER_ID_REGEX:
@@ -623,34 +611,6 @@ def _extract_1win_id_from_postback_text(text):
             pass
     m = re.search(r'\d+', text.strip())
     return m.group(0) if m else (text.strip() if len(text.strip()) < 100 else None)
-
-
-async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка текста: если пользователь в режиме ожидания ID 1win — проверяем постбэки и выдаём доступ."""
-    if not update.message or not update.message.text:
-        return
-    user_id = update.effective_user.id
-    since = db.get_awaiting_1win_id_since(user_id)
-    if since is None:
-        return
-    if time.time() - since > AWAITING_1WIN_TIMEOUT:
-        db.clear_awaiting_1win_id(user_id)
-        await update.message.reply_text("⏰ Время ожидания вышло. Нажмите «Готово» в меню пополнения и снова отправьте ваш ID 1win.")
-        return
-    onewin_id = update.message.text.strip()
-    db.clear_awaiting_1win_id(user_id)
-    postback = db.get_unprocessed_postback_for_1win_id(onewin_id)
-    if postback:
-        postback_id, _, _, _, _ = postback
-        db.mark_postback_processed(postback_id)
-        db.give_access(user_id, 1)
-        await _send_access_granted_message(context.bot, user_id)
-        await update.message.reply_text("✅ Депозит найден в постбэках. Доступ открыт!")
-    else:
-        await update.message.reply_text(
-            "❌ Депозит с таким ID 1win пока не найден в постбэках.\n\n"
-            "Проверьте ID или подождите — постбэки приходят с задержкой. Можно снова нажать «Готово» и отправить ID позже."
-        )
 
 
 async def _send_access_granted_message(bot, chat_id):
@@ -676,38 +636,16 @@ async def _send_access_granted_message(bot, chat_id):
         await bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
 
 
-def _extract_amount_from_postback_text(text):
-    """Из постбэка вида sub1|country|Firstdep|amount или sub1|country|amount извлекает amount (доллары)."""
-    if not text or '|' not in text:
-        return None
-    parts = text.strip().split('|')
-    if len(parts) >= 2:
-        last = parts[-1].strip()
-        try:
-            return float(last.replace(',', '.'))
-        except ValueError:
-            return None
-    return None
-
-
 async def handle_discussion_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Сообщения из группы — постбэки 1win. Сохраняем и копию шлём админу в личку (ADMIN_ID)."""
+    """Сообщения из группы обсуждения — пересылаем постбэки админу в личку (доступ выдаётся вручную)."""
     if not update.message or not update.message.text:
         return
     text = update.message.text
-    onewin_id = _extract_1win_id_from_postback_text(text)
-    if onewin_id:
-        amount = _extract_amount_from_postback_text(text)
-        db.add_postback(onewin_id, raw_text=text, amount=amount)
-        logger.info(f"Постбэк сохранён: 1win_id={onewin_id}, amount={amount}")
-        # Копия постбэка админу в личку (ID 1226518807)
+    if _extract_1win_id_from_postback_text(text):
         try:
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
-                text=f"📥 Постбэк:\n{text}"
-            )
+            await context.bot.send_message(chat_id=ADMIN_ID, text=f"📥 Постбэк:\n{text}")
         except Exception as e:
-            logger.warning(f"Не удалось отправить постбэк админу: {e}")
+            logger.warning("Не удалось отправить постбэк админу: %s", e)
 
 
 async def setref_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -772,7 +710,6 @@ bot_application.add_handler(CommandHandler("start", start))
 bot_application.add_handler(CommandHandler("add", add_command))
 bot_application.add_handler(CommandHandler("setref", setref_command))
 bot_application.add_handler(CallbackQueryHandler(button_handler))
-bot_application.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, handle_text_message))
 if CHANNEL_DISCUSSION_GROUP_ID:
     try:
         discussion_chat_id = int(CHANNEL_DISCUSSION_GROUP_ID)
