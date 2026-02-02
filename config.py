@@ -2,9 +2,9 @@
 import os
 from pathlib import Path
 
-# Токен бота (берется из переменных окружения или дефолтное значение)
-# НЕ ХРАНИТЕ ТОКЕН В РЕПОЗИТОРИИ! Используйте переменные окружения на сервере
-BOT_TOKEN = os.getenv('BOT_TOKEN', '8093170790:AAHt36R8ScwD6o9Ya-8Wo7DyH8x215HpH-E')
+# Токен бота — ОБЯЗАТЕЛЬНО задай в Railway Variables: BOT_TOKEN=твой_токен_от_BotFather
+# Без переменной BOT_TOKEN бот не запустится
+BOT_TOKEN = os.getenv('BOT_TOKEN', '').strip()
 
 # ID администратора (в Railway Variables задай ADMIN_ID=1226518807)
 ADMIN_ID = int(os.getenv('ADMIN_ID', '1226518807'))
@@ -44,8 +44,7 @@ DEPOSIT_PHOTO = get_photo_path('deposit')
 WAITING_PHOTO = get_photo_path('waiting')
 ACCESS_GRANTED_PHOTO = get_photo_path('access_granted')
 
-# Постбэки 1win: группа обсуждения канала (комментарии), куда приходят постбэки
-# Форматы: регистрация {sub1}, первый депозит {sub1}|{country}|Firstdep|{amount}, повторный {sub1}|{country}|{amount}
+# Постбэки 1win: чат/группа, куда бот присылает постбэки (формат: 347564988:it:прошелрегистрацию)
 CHANNEL_DISCUSSION_GROUP_ID = os.getenv('CHANNEL_DISCUSSION_GROUP_ID', '-1003810391629')
-# Извлечение sub1 (ID пользователя 1win): первый сегмент до |. Регулярка: первая группа = sub1
-POSTBACK_USER_ID_REGEX = os.getenv('POSTBACK_USER_ID_REGEX', r'^([^|]+)')
+# Извлечение ID из постбэка: первый сегмент до : (пример: 347564988:it:прошелрегистрацию → 347564988)
+POSTBACK_USER_ID_REGEX = os.getenv('POSTBACK_USER_ID_REGEX', r'^([^:]+)')

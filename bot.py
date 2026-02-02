@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import logging
 import time
 import threading
@@ -16,7 +17,11 @@ from config import (
     CHANNEL_DISCUSSION_GROUP_ID, POSTBACK_USER_ID_REGEX
 )
 
-# РќР°СЃС‚СЂРѕР№РєР° Р»РѕРіРёСЂРѕРІР°РЅРёСЏ
+if not BOT_TOKEN:
+    print("ОШИБКА: Переменная BOT_TOKEN не задана! Задай её в Railway → Variables.", file=sys.stderr)
+    sys.exit(1)
+
+# Настройка логирования
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
