@@ -2,10 +2,16 @@ import sqlite3
 import os
 from datetime import datetime
 
+# Путь к БД: задай DATABASE_PATH в Railway (например /data/bot.db) и смонтируй Volume на /data — данные сохранятся при редиплое
+DB_PATH = os.getenv('DATABASE_PATH', 'bot.db')
+
 
 class Database:
-    def __init__(self, db_name='bot.db'):
-        self.db_name = db_name
+    def __init__(self, db_name=None):
+        self.db_name = db_name or DB_PATH
+        _dir = os.path.dirname(self.db_name)
+        if _dir:
+            os.makedirs(_dir, exist_ok=True)
         self.init_db()
     
     def get_connection(self):
