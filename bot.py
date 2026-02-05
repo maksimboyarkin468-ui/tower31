@@ -7,7 +7,7 @@ import threading
 from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, InputMediaPhoto
-from telegram.error import BadRequest
+from telegram.error import BadRequest, Conflict
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ContextTypes
 from telegram.ext import filters
 import asyncio
@@ -888,10 +888,16 @@ if __name__ == '__main__':
     
     if not use_webhook:
         logger.info("🤖 Запуск в режиме polling — бот работает без вебхука")
-        bot_application.run_polling(
-            allowed_updates=Update.ALL_TYPES,
-            drop_pending_updates=True
-        )
+        while True:
+            try:
+                bot_application.run_polling(
+                    allowed_updates=Update.ALL_TYPES,
+                    drop_pending_updates=True
+                )
+                break
+            except Conflict:
+                logger.warning("⚠️ 409 Conflict: другой экземпляр бота уже опрашивает Telegram. Ждём 60 сек и пробуем снова...")
+                time.sleep(60)
     else:
         # Webhook — когда задан WEBHOOK_URL или домен Railway
         _bot_loop = asyncio.new_event_loop()
