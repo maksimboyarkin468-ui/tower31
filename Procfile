@@ -1,1 +1,1 @@
-﻿web: python bot.py
+web: sh run_bot.sh
