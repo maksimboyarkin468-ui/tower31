@@ -117,19 +117,21 @@ async def handle_get_signal(query, context):
     is_subscribed = await check_channel_subscription(context.bot, user_id)
     
     if not is_subscribed:
-        # Просим подписаться
+        # Просим подписаться (если сообщение с фото — нельзя заменить на текст, удаляем и шлём новое)
         keyboard = [
             [InlineKeyboardButton("📢 Подписаться на канал", url=f"https://t.me/{CHANNEL_USERNAME}")],
             [InlineKeyboardButton("✅ Я подписался", callback_data="check_subscription")],
             [InlineKeyboardButton("🔙 Вернуться в меню", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
         text = """📢 Для получения сигналов необходимо подписаться на наш канал!
 
 Нажмите кнопку ниже, чтобы перейти к каналу и подписаться."""
-        
-        await query.edit_message_text(text, reply_markup=reply_markup)
+        try:
+            await query.edit_message_text(text, reply_markup=reply_markup)
+        except BadRequest:
+            await query.message.delete()
+            await query.message.reply_text(text, reply_markup=reply_markup)
     else:
         # Проверяем доступ
         has_access = db.user_has_access(user_id)
@@ -175,12 +177,14 @@ async def handle_check_subscription(query, context):
             [InlineKeyboardButton("🔙 Вернуться в меню", callback_data="back_to_menu")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
         text = """❌ Вы еще не подписаны на канал!
 
 Пожалуйста, подпишитесь на канал и нажмите кнопку "Я подписался"."""
-        
-        await query.edit_message_text(text, reply_markup=reply_markup)
+        try:
+            await query.edit_message_text(text, reply_markup=reply_markup)
+        except BadRequest:
+            await query.message.delete()
+            await query.message.reply_text(text, reply_markup=reply_markup)
 
 
 async def show_deposit_message(query, context):
