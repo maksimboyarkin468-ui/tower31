@@ -4,6 +4,7 @@ import sys
 import logging
 import time
 import threading
+from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, InputMediaPhoto
 from telegram.error import BadRequest
@@ -127,11 +128,11 @@ async def handle_get_signal(query, context):
         text = """📢 Для получения сигналов необходимо подписаться на наш канал!
 
 Нажмите кнопку ниже, чтобы перейти к каналу и подписаться."""
-        try:
-            await query.edit_message_text(text, reply_markup=reply_markup)
-        except BadRequest:
+        if query.message.photo:
             await query.message.delete()
             await query.message.reply_text(text, reply_markup=reply_markup)
+        else:
+            await query.edit_message_text(text, reply_markup=reply_markup)
     else:
         # Проверяем доступ
         has_access = db.user_has_access(user_id)
@@ -157,8 +158,11 @@ async def handle_get_signal(query, context):
 🤖 AI-бот автоматически сгенерирует для вас точный прогноз с вероятностью успеха!
 
 🍀 Удачи в игре!"""
-            
-            await query.edit_message_text(text, reply_markup=reply_markup)
+            if query.message.photo:
+                await query.message.delete()
+                await query.message.reply_text(text, reply_markup=reply_markup)
+            else:
+                await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def handle_check_subscription(query, context):
@@ -180,11 +184,11 @@ async def handle_check_subscription(query, context):
         text = """❌ Вы еще не подписаны на канал!
 
 Пожалуйста, подпишитесь на канал и нажмите кнопку "Я подписался"."""
-        try:
-            await query.edit_message_text(text, reply_markup=reply_markup)
-        except BadRequest:
+        if query.message.photo:
             await query.message.delete()
             await query.message.reply_text(text, reply_markup=reply_markup)
+        else:
+            await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def show_deposit_message(query, context):
@@ -218,16 +222,19 @@ async def show_deposit_message(query, context):
                 reply_markup=reply_markup
             )
         except Exception as e:
-            # Если не получилось изменить медиа, отправляем новое сообщение
             logger.error(f"Ошибка отправки фото депозита: {e}")
+            await query.message.delete()
             await query.message.reply_photo(
                 photo=DEPOSIT_PHOTO,
                 caption=text,
                 reply_markup=reply_markup
             )
-            await query.message.delete()
     else:
-        await query.edit_message_text(text, reply_markup=reply_markup)
+        if query.message.photo:
+            await query.message.delete()
+            await query.message.reply_text(text, reply_markup=reply_markup)
+        else:
+            await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def handle_deposit(query, context):
@@ -263,24 +270,25 @@ async def handle_deposit_ready(query, context):
 
 ❓ Если что-то не работает или доступ не открылся — напишите менеджеру: https://t.me/nomep999"""
         
-        # Отправляем фото если указано
         if WAITING_PHOTO:
             try:
                 await query.edit_message_media(
                     media=InputMediaPhoto(media=WAITING_PHOTO, caption=text),
                     reply_markup=reply_markup
                 )
-            except Exception as e:
-                # Если не получилось изменить медиа, отправляем новое сообщение
-                logger.error(f"Ошибка отправки фото ожидания: {e}")
+            except Exception:
+                await query.message.delete()
                 await query.message.reply_photo(
                     photo=WAITING_PHOTO,
                     caption=text,
                     reply_markup=reply_markup
                 )
-                await query.message.delete()
         else:
-            await query.edit_message_text(text, reply_markup=reply_markup)
+            if query.message.photo:
+                await query.message.delete()
+                await query.message.reply_text(text, reply_markup=reply_markup)
+            else:
+                await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def show_access_granted_message(query, context):
@@ -336,24 +344,25 @@ https://tower-b0t-web.vercel.app/
 
 Желаем удачной игры и больших выигрышей! 🍀✨"""
     
-    # Отправляем фото если указано
     if ACCESS_GRANTED_PHOTO:
         try:
             await query.edit_message_media(
                 media=InputMediaPhoto(media=ACCESS_GRANTED_PHOTO, caption=text),
                 reply_markup=reply_markup
             )
-        except Exception as e:
-            # Если не получилось изменить медиа, отправляем новое сообщение
-            logger.error(f"Ошибка отправки фото доступа: {e}")
+        except Exception:
+            await query.message.delete()
             await query.message.reply_photo(
                 photo=ACCESS_GRANTED_PHOTO,
                 caption=text,
                 reply_markup=reply_markup
             )
-            await query.message.delete()
     else:
-        await query.edit_message_text(text, reply_markup=reply_markup)
+        if query.message.photo:
+            await query.message.delete()
+            await query.message.reply_text(text, reply_markup=reply_markup)
+        else:
+            await query.edit_message_text(text, reply_markup=reply_markup)
 
 
 async def handle_back_to_menu(query, context):
@@ -377,24 +386,25 @@ async def handle_back_to_menu(query, context):
 
 Выберите действие из меню ниже 👇"""
     
-    # Отправляем фото если указано
     if MAIN_MENU_PHOTO:
         try:
             await query.edit_message_media(
                 media=InputMediaPhoto(media=MAIN_MENU_PHOTO, caption=welcome_text),
                 reply_markup=reply_markup
             )
-        except Exception as e:
-            # Если не получилось изменить медиа, отправляем новое сообщение
-            logger.error(f"Ошибка отправки фото главного меню: {e}")
+        except Exception:
+            await query.message.delete()
             await query.message.reply_photo(
                 photo=MAIN_MENU_PHOTO,
                 caption=welcome_text,
                 reply_markup=reply_markup
             )
-            await query.message.delete()
     else:
-        await query.edit_message_text(welcome_text, reply_markup=reply_markup)
+        if query.message.photo:
+            await query.message.delete()
+            await query.message.reply_text(welcome_text, reply_markup=reply_markup)
+        else:
+            await query.edit_message_text(welcome_text, reply_markup=reply_markup)
 
 
 async def handle_admin_panel(query, context):
@@ -433,6 +443,19 @@ async def handle_admin_panel(query, context):
             raise
 
 
+def _created_at_msk(created_at_str):
+    """Форматирует created_at (UTC в БД) в строку по Москве (МСК)."""
+    if not created_at_str:
+        return "—"
+    try:
+        dt = datetime.strptime(created_at_str[:19], "%Y-%m-%d %H:%M:%S")
+        dt_utc = dt.replace(tzinfo=timezone.utc)
+        msk = timezone(timedelta(hours=3))
+        return dt_utc.astimezone(msk).strftime("%d.%m.%Y %H:%M МСК")
+    except Exception:
+        return created_at_str
+
+
 async def handle_admin_users(query, context):
     """Список пользователей для админа"""
     users = db.get_all_users()
@@ -441,16 +464,24 @@ async def handle_admin_users(query, context):
         text = "👥 Пользователей пока нет."
     else:
         text = "👥 Список пользователей:\n\n"
-        for user in users[:20]:  # Показываем первые 20
-            user_id, username, has_access = user
+        for user in users[:30]:
+            user_id = user[0]
+            username = user[1]
+            has_access = user[2]
+            created_at = user[3] if len(user) > 3 else None
             status = "✅ Доступ есть" if has_access else "❌ Нет доступа"
             username_text = f"@{username}" if username else f"ID: {user_id}"
-            text += f"{username_text} ({user_id})\n{status}\n\n"
+            start_msk = _created_at_msk(created_at)
+            text += f"{username_text} ({user_id})\n{status}\n🕐 /start: {start_msk}\n\n"
     
     keyboard = [[InlineKeyboardButton("🔙 Панель администратора", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(text, reply_markup=reply_markup)
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup)
+    except BadRequest:
+        await query.message.delete()
+        await query.message.reply_text(text, reply_markup=reply_markup)
 
 
 async def handle_admin_give_access(query, context):
@@ -469,24 +500,31 @@ async def handle_admin_give_access(query, context):
     
     keyboard = [[InlineKeyboardButton("🔙 Панель администратора", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup)
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup)
+    except BadRequest:
+        await query.message.delete()
+        await query.message.reply_text(text, reply_markup=reply_markup)
 
 
 async def handle_admin_stats(query, context):
-    """Статистика бота"""
+    """Статистика бота (новые за сегодня — по МСК)"""
     stats = db.get_stats()
     
     text = f"""📊 Статистика бота
 
 👥 Всего пользователей: {stats['total_users']}
 ✅ Пользователей с доступом: {stats['users_with_access']}
-📈 Новых за сегодня: {stats['new_today']}"""
+📈 Новых за сегодня (МСК): {stats['new_today']}"""
     
     keyboard = [[InlineKeyboardButton("🔙 Панель администратора", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await query.edit_message_text(text, reply_markup=reply_markup)
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup)
+    except BadRequest:
+        await query.message.delete()
+        await query.message.reply_text(text, reply_markup=reply_markup)
 
 
 async def handle_admin_update_referral(query, context):
@@ -506,8 +544,11 @@ async def handle_admin_update_referral(query, context):
     
     keyboard = [[InlineKeyboardButton("🔙 Панель администратора", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    await query.edit_message_text(text, reply_markup=reply_markup)
+    try:
+        await query.edit_message_text(text, reply_markup=reply_markup)
+    except BadRequest:
+        await query.message.delete()
+        await query.message.reply_text(text, reply_markup=reply_markup)
 
 
 async def handle_admin_confirm_deposit(query, context, target_user_id):

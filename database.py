@@ -86,11 +86,11 @@ class Database:
     def get_all_users(self):
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute('SELECT user_id, username, has_access FROM users ORDER BY created_at DESC')
+        cursor.execute('SELECT user_id, username, has_access, created_at FROM users ORDER BY created_at DESC')
         users = cursor.fetchall()
         conn.close()
-        return [(row[0], row[1], row[2]) for row in users]
-    
+        return [(row[0], row[1], row[2], row[3]) for row in users]
+
     def get_stats(self):
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -98,7 +98,10 @@ class Database:
         total_users = cursor.fetchone()[0]
         cursor.execute('SELECT COUNT(*) FROM users WHERE has_access = 1')
         users_with_access = cursor.fetchone()[0]
-        cursor.execute('SELECT COUNT(*) FROM users WHERE DATE(created_at) = DATE(\"now\")')
+        # «Сегодня» по Москве (UTC+3): created_at в SQLite хранится в UTC
+        cursor.execute(
+            "SELECT COUNT(*) FROM users WHERE DATE(created_at, '+3 hours') = DATE('now', '+3 hours')"
+        )
         new_today = cursor.fetchone()[0]
         conn.close()
         return {'total_users': total_users, 'users_with_access': users_with_access, 'new_today': new_today}
@@ -137,12 +140,20 @@ class Database:
         """Возвращает последний необработанный постбэк с таким ID 1win или None."""
         conn = self.get_connection()
         cursor = conn.cursor()
+        key = str(onewin_user_id).strip()
         cursor.execute(
             'SELECT id, onewin_user_id, raw_text, amount, created_at FROM postbacks '
             'WHERE onewin_user_id = ? AND processed = 0 ORDER BY created_at DESC LIMIT 1',
-            (str(onewin_user_id).strip(),)
+            (key,)
         )
         row = cursor.fetchone()
+        if not row and key.isdigit():
+            cursor.execute(
+                'SELECT id, onewin_user_id, raw_text, amount, created_at FROM postbacks '
+                'WHERE TRIM(onewin_user_id) = ? AND processed = 0 ORDER BY created_at DESC LIMIT 1',
+                (key,)
+            )
+            row = cursor.fetchone()
         conn.close()
         return (row[0], row[1], row[2], row[3], row[4]) if row else None
 
